@@ -1,0 +1,134 @@
+---
+title: "How Covid Impacted NYPD Shooting Incident Data"
+author: "Brennan Han"
+date: "2025-02-25"
+output:
+  pdf_document: 
+    fig_caption: true
+  html_document: 
+    fig_caption: yes
+editor_options: 
+  chunk_output_type: inline
+  markdown: 
+    wrap: 72
+---
+
+## Explaination
+
+```         
+We are going to have Pre-Covid, Covid, and Post-Covid data
+and see the the amount of incidents happened during each time period
+then we are going to compare buroughs to burough and from time-range 
+to time-range
+
+Significant dates:
+March 22, 2020 NYS on Pause Program begins, all non-essential workers must stay home
+June 15, 2021 Governor Cuomo reopened the entirety of New York State
+
+Because the Covid lock in dates were 450 days, we will use 450 days prior
+as our Pre-Covid data, and 450 days after the mandate as our Post-Covid
+Data, and the lock-in dates as the Covid data
+```
+
+## R Markdown
+```{r setup}
+library(ggplot2)
+library(tidyverse)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, fig.show = "hold")
+```
+
+```{r}
+## Import Data
+url <- "https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD"
+
+NYPD_Shooting_Incident_Data <- read_csv(url)
+
+## convert Date to Date format
+
+NYPD_Shooting_Incident_Data$OCCUR_DATE <- as.Date(
+  NYPD_Shooting_Incident_Data$OCCUR_DATE, format = "%m/%d/%Y") 
+## 450 days of covid 
+Pre_Pre_Covid_Date <- as.Date("2018-12-28")
+Pre_Covid_Date <- as.Date("2020-03-22") 
+Post_Covid_Date <-as.Date("2021-06-15") 
+Post_Post_Covid_Date <- as.Date("2022-08-08")
+
+## Filter the data by preCovid, Covid, and PostCovid
+## and put into their own tables
+
+Pre_Covid_Data <- NYPD_Shooting_Incident_Data %>% filter(OCCUR_DATE >
+Pre_Pre_Covid_Date & OCCUR_DATE < Pre_Covid_Date)
+
+Covid_Data <- NYPD_Shooting_Incident_Data %>% filter(Pre_Covid_Date <
+OCCUR_DATE & OCCUR_DATE< Post_Covid_Date)
+
+Post_Covid_Data <- NYPD_Shooting_Incident_Data %>% filter(OCCUR_DATE
+> Post_Covid_Date & OCCUR_DATE < Post_Post_Covid_Date)
+
+## Add the counts of incidents and label them as well
+
+Pre_Covid_Boro_Count <- Pre_Covid_Data %>% count(BORO)
+Pre_Covid_Boro_Count$Date_Range <- "Pre-Covid"
+
+Covid_Boro_Count <- Covid_Data %>% count(BORO)
+Covid_Boro_Count$Date_Range <- "Covid"
+
+Post_Covid_Boro_Count <- Post_Covid_Data %>% count(BORO)
+Post_Covid_Boro_Count$Date_Range <- "Post-Covid"
+
+## Put all the data together in one table
+
+combined_data <- bind_rows(Pre_Covid_Boro_Count, Covid_Boro_Count,
+Post_Covid_Boro_Count) %>% mutate(BORO = factor(BORO), Date_Range
+=(Date_Range)) %>% droplevels()
+```
+## Number of Incidents by Borough Before Covid
+```{r plot-pre-covid1, fig.cap = "Number of Incidents by Borough Before Covid", fig.width = 6, fig.height = 4}
+
+ggplot(Pre_Covid_Boro_Count, aes(x = BORO, y = n, fill = BORO)) +
+geom_bar(stat = "identity") + labs( title = "Number of Incidents by
+Borough The Year Before Covid", x = "Borough", y = "Number of Incidents"
+)
+```
+## Number of Incidents by Borough During Covid
+```{r plot-covid, fig.cap = "Number of Incidents by Borough During Covid", fig.width = 6, fig.height = 4}
+
+ggplot(Covid_Boro_Count, aes(x = BORO, y = n, fill = BORO) ) +
+geom_bar(stat = "Identity") + labs( title = "Number of Incidents by
+Borough During Covid", x = "Borough", y = "Number of Incidents" )
+```
+## Number of Incidents by Borough The Year After Covid
+```{r plot-post-covid, fig.cap = "Number of Incidents by Borough The Year After Covid", fig.width = 6, fig.height = 4}
+ggplot(Post_Covid_Boro_Count, aes(x = BORO, y = n, fill = BORO) ) +
+geom_bar(stat = "Identity") + labs( title = "Number of Incidents by
+Borough The Year After Covid", x = "Borough", y = "Number of Incidents"
+)
+```
+## Number of Incidents by Borough and Covid Time Ranges
+```{r plot-three-ranges, fig.cap = "Number of Incidents by Borough and Covid Time Ranges", fig.width = 6, fig.height = 4}
+ggplot(combined_data, aes(x = BORO, y = n, fill = Date_Range) ) +
+geom_bar(stat = "identity", position = "dodge") + labs(title =
+"Incidents by Borough and Covid Time Ranges", x = "Borough", y = "Number of
+Incidents")
+```
+## Put together all the combined Covid Time ranges data so we can run a model on them
+```{r}
+
+combined_data$Date_Range <- factor(combined_data$Date_Range, levels = 
+                                     c("Pre-Covid", "Covid", "Post-Covid"))
+```
+## Run a linear model on them
+```{r}
+lm_model <- lm(n ~ BORO + Date_Range, data = combined_data)
+summary(lm_model)
+```
+
+## Some notes on potential Bias
+```
+I am aware that there is bias in that I did not add data about
+whether or not there was a death in the incidents so an incident may have
+a varying amount of range in its definition. Also, each borough is different 
+in area and population which could make it seem like boroughs have a higher
+or lower incidents because of this. 
+
+```
